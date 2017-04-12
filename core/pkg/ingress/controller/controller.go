@@ -133,6 +133,8 @@ type Configuration struct {
 	Backend ingress.Controller
 
 	UpdateStatus bool
+	NamespaceIsolation bool
+
 	ElectionID   string
 }
 
@@ -254,12 +256,19 @@ func newIngressController(config *Configuration) *GenericController {
 		cache.NewListWatchFromClient(ic.cfg.Client.Core().RESTClient(), "endpoints", ic.cfg.Namespace, fields.Everything()),
 		&api.Endpoints{}, ic.cfg.ResyncPeriod, eventHandler)
 
+	var watchNamespace string
+	if ic.cfg.NamespaceIsolation {
+		watchNamespace = ic.cfg.Namespace
+	} else {
+		watchNamespace = api.NamespaceAll
+	}
+
 	ic.secrLister.Store, ic.secrController = cache.NewInformer(
-		cache.NewListWatchFromClient(ic.cfg.Client.Core().RESTClient(), "secrets", api.NamespaceAll, fields.Everything()),
+		cache.NewListWatchFromClient(ic.cfg.Client.Core().RESTClient(), "secrets", watchNamespace, fields.Everything()),
 		&api.Secret{}, ic.cfg.ResyncPeriod, secrEventHandler)
 
 	ic.mapLister.Store, ic.mapController = cache.NewInformer(
-		cache.NewListWatchFromClient(ic.cfg.Client.Core().RESTClient(), "configmaps", api.NamespaceAll, fields.Everything()),
+		cache.NewListWatchFromClient(ic.cfg.Client.Core().RESTClient(), "configmaps", watchNamespace, fields.Everything()),
 		&api.ConfigMap{}, ic.cfg.ResyncPeriod, mapEventHandler)
 
 	ic.svcLister.Store, ic.svcController = cache.NewInformer(

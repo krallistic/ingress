@@ -71,6 +71,8 @@ func NewIngressController(backend ingress.Controller) *GenericController {
 		watchNamespace = flags.String("watch-namespace", api.NamespaceAll,
 			`Namespace to watch for Ingress. Default is to watch all namespaces`)
 
+		forceIsolation = flags.Bool("force-isolation", false, "Enable full Namespace Isolation. Controller can only access ressources in his namespace (set by  watch-namespace)")
+
 		healthzPort = flags.Int("healthz-port", 10254, "port for healthz endpoint.")
 
 		profiling = flags.Bool("profiling", true, `Enable profiling via web interface host:port/debug/pprof/`)
@@ -138,6 +140,20 @@ func NewIngressController(backend ingress.Controller) *GenericController {
 		}
 	}
 
+	if *forceIsolation {
+		// Isolation is enable, checking if NS is activated
+		if *watchNamespace != "" {
+			_, err = k8s.IsValidNamespace(kubeClient, *watchNamespace)
+
+			if err != nil {
+				glog.Fatalf("no watchNamespace with name %v found: %v", *watchNamespace, err)
+			}
+
+		} else {
+			glog.Fatalf("isolation set but no namespace set")
+		}
+	}
+
 	err = os.MkdirAll(ingress.DefaultSSLDirectory, 0655)
 	if err != nil {
 		glog.Errorf("Failed to mkdir SSL directory: %v", err)
@@ -152,6 +168,7 @@ func NewIngressController(backend ingress.Controller) *GenericController {
 		IngressClass:          *ingressClass,
 		DefaultIngressClass:   backend.DefaultIngressClass(),
 		Namespace:             *watchNamespace,
+		NamespaceIsolation:    *forceIsolation,
 		ConfigMapName:         *configMap,
 		TCPConfigMapName:      *tcpConfigMapName,
 		UDPConfigMapName:      *udpConfigMapName,
